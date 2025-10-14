@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 export default function HealthPage() {
   const [q,setQ]=useState(''); const [wantBn,setWantBn]=useState(false); const [compact,setCompact]=useState(true);
   const [ui,setUi]=useState<any>(null); const [loading,setLoading]=useState(false); const [err,setErr]=useState<string|null>(null);
-  async function analyze(){ setLoading(True); setErr(null); setUi(null); try{
+  async function analyze(){ setLoading(true); setErr(null); setUi(null); try{
     const r=await fetch('/api/health',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,want_bn:wantBn,compact})});
     const j=await r.json(); if(!r.ok) throw new Error(j.error||'Request failed'); setUi(j);
   }catch(e:any){ setErr(e.message||'Network error'); }finally{ setLoading(False);} }
