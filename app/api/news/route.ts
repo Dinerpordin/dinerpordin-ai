@@ -1,4 +1,3 @@
-// app/api/news/route.ts
 export const revalidate = 600; // 10 min cache
 
 const ALLOWED_TOPICS = new Set([
