@@ -1,3 +1,4 @@
+// app/news/news-client.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -19,8 +20,8 @@ function useFilters(): [Filters, (patch: Partial<Filters>) => void] {
   const setFilters = (patch: Partial<Filters>) => {
     const params = new URLSearchParams(sp.toString());
     for (const [k, v] of Object.entries(patch)) {
-      if (v === undefined || v === null || v === '') params.delete(k);
-      else params.set(k, String(v));
+      if (v === undefined || v === null || v === '') params.delete(k as string);
+      else params.set(k as string, String(v));
     }
     router.push(`/news?${params.toString()}`);
   };
@@ -68,7 +69,6 @@ export default function NewsClient() {
 
   return (
     <>
-      {/* Filter pills */}
       <div className="flex flex-wrap gap-2 mb-4">
         <Pill active={(filters.topic ?? 'world') === 'world'} onClick={() => toggle('topic','world')} label="World" />
         <Pill active={filters.country === 'bd'} onClick={() => toggle('country','bd')} label="Bangladesh" />
@@ -78,7 +78,6 @@ export default function NewsClient() {
         <Pill active={filters.lang === 'bn'} onClick={() => toggle('lang','bn')} label="বাংলা" />
       </div>
 
-      {/* Search */}
       <SearchBar value={filters.q || ''} onChange={(v)=>setFilters({ q: v || undefined })} />
 
       {loading && <div className="text-slate-600">Loading…</div>}
