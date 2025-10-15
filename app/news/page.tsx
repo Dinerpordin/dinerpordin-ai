@@ -70,7 +70,6 @@ export default function NewsPage() {
     <section>
       <h1 className="text-2xl font-semibold mb-3">Top headlines</h1>
 
-      {/* Filter pills */}
       <div className="flex flex-wrap gap-2 mb-4">
         <Pill active={(filters.topic ?? 'world') === 'world'} onClick={() => toggle('topic','world')} label="World" />
         <Pill active={filters.country === 'bd'} onClick={() => toggle('country','bd')} label="Bangladesh" />
@@ -80,7 +79,6 @@ export default function NewsPage() {
         <Pill active={filters.lang === 'bn'} onClick={() => toggle('lang','bn')} label="বাংলা" />
       </div>
 
-      {/* Search */}
       <SearchBar value={filters.q || ''} onChange={(v)=>setFilters({ q: v || undefined })} />
 
       {loading && <div className="text-slate-600">Loading…</div>}
