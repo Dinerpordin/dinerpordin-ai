@@ -1,204 +1,322 @@
-// app/api/headlines/route.ts
-import { NextResponse } from "next/server";
+// app/news/page.tsx
+'use client';
 
-type Item = {
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+
+interface NewsItem {
   title: string;
   summary: string;
   url: string;
   source: string;
   topic: string;
   lang: string;
-};
-
-// --- Very small RSS fetcher/normalizer (no external libs) ---
-async function fetchText(url: string): Promise<string> {
-  const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
-  if (!r.ok) throw new Error(`Fetch ${url} -> ${r.status}`);
-  return await r.text();
 }
 
-function extractTags(xml: string, tag: string): string[] {
-  const out: string[] = [];
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
-  let m;
-  while ((m = re.exec(xml))) out.push(m[1].replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1").trim());
-  return out;
+interface NewsResponse {
+  items: NewsItem[];
+  meta: {
+    country: string;
+    topic: string;
+    lang: string;
+    provider: string;
+    errorCount: number;
+    warning: string | null;
+  };
 }
 
-function strip(html: string): string {
-  return html.replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim();
+// Filter chips component
+function FilterChips({ currentTopic, currentLang, onFilterChange }: {
+  currentTopic: string;
+  currentLang: string;
+  onFilterChange: (topic: string, lang: string) => void;
+}) {
+  const topics = [
+    { id: 'world', label: 'World' },
+    { id: 'bangladesh', label: 'Bangladesh' },
+    { id: 'sports', label: 'Sports' },
+    { id: 'technology', label: 'Technology' }
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Topic Filters */}
+      <div className="flex flex-wrap gap-2">
+        {topics.map((topic) => (
+          <button
+            key={topic.id}
+            onClick={() => onFilterChange(topic.id, currentLang)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              currentTopic === topic.id
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {topic.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Language Toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-gray-700">Language:</span>
+        <button
+          onClick={() => onFilterChange(currentTopic, 'en')}
+          className={`px-3 py-1 rounded text-sm font-medium ${
+            currentLang === 'en'
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          EN
+        </button>
+        <button
+          onClick={() => onFilterChange(currentTopic, 'bn')}
+          className={`px-3 py-1 rounded text-sm font-medium ${
+            currentLang === 'bn'
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          BN
+        </button>
+      </div>
+    </div>
+  );
 }
 
-// Minimal “parser”: supports common RSS/Atom tags
-function parseRSS(xml: string): { title: string; link: string; summary: string }[] {
-  // Try RSS <item>
-  const items = xml.split(/<item>/i).slice(1);
-  if (items.length) {
-    return items.map(block => {
-      const title = strip((block.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
-      const link  = strip(block.match(/<link[^>]*>([\\s\\S]*?)<\\/link>/i)?.[1] ?? "");
-      const desc  = strip(block.match(/<description[^>]*>([\\s\\S]*?)<\\/description>/i)?.[1] ?? "");
-      const content = strip(block.match(/<content:encoded[^>]*>([\\s\\S]*?)<\\/content:encoded>/i)?.[1] ?? "");
-      return { title, link, summary: content || desc };
-    }).filter(x => x.title && x.link);
-  }
+// Search component
+function SearchBox({ currentQuery, onSearch }: {
+  currentQuery: string;
+  onSearch: (query: string) => void;
+}) {
+  const [localQuery, setLocalQuery] = useState(currentQuery);
 
-  // Try Atom <entry>
-  const entries = xml.split(/<entry>/i).slice(1);
-  if (entries.length) {
-    return entries.map(block => {
-      const title = strip((block.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
-      const link  = (block.match(/<link[^>]*href="([^"]+)"/i)?.[1] ?? "").trim();
-      const sum   = strip((block.match(/<summary[^>]*>([\\s\\S]*?)<\\/summary>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
-      const content = strip((block.match(/<content[^>]*>([\\s\\S]*?)<\\/content>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
-      return { title, link, summary: content || sum };
-    }).filter(x => x.title && x.link);
-  }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSearch(localQuery);
+  };
 
-  return [];
+  return (
+    <form onSubmit={handleSubmit} className="w-full max-w-md">
+      <div className="relative">
+        <input
+          type="text"
+          value={localQuery}
+          onChange={(e) => setLocalQuery(e.target.value)}
+          placeholder="Search news..."
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <button
+          type="submit"
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 bg-blue-600 text-white rounded text-sm"
+        >
+          Search
+        </button>
+      </div>
+    </form>
+  );
 }
 
-// --- feed map (extend any time) ---
-const FEEDS: Record<string, string[]> = {
-  // topic -> list of feeds
-  world: [
-    "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "https://rss.cnn.com/rss/edition_world.rss",
-    "https://www.aljazeera.com/xml/rss/all.xml",
-    "https://www.nytimes.com/services/xml/rss/nyt/World.xml"
-  ],
-  sports: [
-    "https://www.espn.com/espn/rss/news",
-    "https://www.theguardian.com/uk/sport/rss"
-  ],
-  technology: [
-    "https://www.theverge.com/rss/index.xml",
-    "https://www.techmeme.com/feed.xml"
-  ],
-  bangladesh: [
-    // English
-    "https://www.thedailystar.net/frontpage/rss.xml",
-    // Bangla (Prothom Alo Bangla)
-    "https://www.prothomalo.com/feed"
-  ]
-};
-
-// Map (country, topic) to feed keys
-function selectFeeds(country: string, topic: string): string[] {
-  if (country === "bd") return FEEDS.bangladesh;
-  if (FEEDS[topic]) return FEEDS[topic];
-  return FEEDS.world;
+// News item component
+function NewsCard({ item }: { item: NewsItem }) {
+  return (
+    <article className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+      <div className="flex justify-between items-start mb-2">
+        <h2 className="text-xl font-semibold text-gray-900 pr-4">
+          <a 
+            href={item.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-blue-600 transition-colors"
+          >
+            {item.title}
+          </a>
+        </h2>
+        <span className={`px-2 py-1 text-xs rounded-full ${
+          item.lang === 'bn' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+        }`}>
+          {item.lang.toUpperCase()}
+        </span>
+      </div>
+      
+      <p className="text-gray-600 mb-3 line-clamp-3">{item.summary}</p>
+      
+      <div className="flex justify-between items-center text-sm text-gray-500">
+        <span className="font-medium">{item.source}</span>
+        <span className="capitalize">{item.topic}</span>
+      </div>
+    </article>
+  );
 }
 
-// Optional OpenAI summarizer
-async function summarizeWithOpenAI(items: Item[], lang: string): Promise<Item[]> {
-  if (process.env.FORCE_SIMPLE_SUMMARY === "1") return items;
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return items; // no-op if no key
+// Loading skeleton
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="bg-white rounded-lg shadow-md p-6 animate-pulse">
+          <div className="h-6 bg-gray-200 rounded mb-2 w-3/4"></div>
+          <div className="h-4 bg-gray-200 rounded mb-1 w-full"></div>
+          <div className="h-4 bg-gray-200 rounded mb-1 w-5/6"></div>
+          <div className="h-4 bg-gray-200 rounded mb-3 w-4/6"></div>
+          <div className="flex justify-between">
+            <div className="h-4 bg-gray-200 rounded w-20"></div>
+            <div className="h-4 bg-gray-200 rounded w-16"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  // Keep prompt short; summarize titles+snippets into the same language.
-  const prompt = `Summarize each of the following news items into a short one-sentence summary in language code "${lang}". 
-Return JSON array of objects with keys: title, summary, url, source, topic, lang. 
-Input: ${JSON.stringify(items.slice(0, 12))}`;
+// Main news content component
+function NewsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const topic = searchParams.get('topic') || 'world';
+  const lang = searchParams.get('lang') || 'en';
+  const q = searchParams.get('q') || '';
+  
+  const [news, setNews] = useState<NewsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Use the OpenAI completions/chat API via fetch to avoid extra deps
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "authorization": `Bearer ${key}`,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: 600
-    })
-  });
-
-  if (!r.ok) return items;
-  const data = await r.json();
-  const text = data?.choices?.[0]?.message?.content?.trim();
-  if (!text) return items;
-
-  try {
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed)) {
-      // validate minimal structure
-      return parsed.filter((x: any) => x?.title && x?.url).map((x: any) => ({
-        title: String(x.title),
-        summary: String(x.summary ?? ""),
-        url: String(x.url),
-        source: String(x.source ?? ""),
-        topic: String(x.topic ?? ""),
-        lang: String(x.lang ?? lang)
-      }));
+  const updateURL = (newTopic: string, newLang: string, newQuery: string = '') => {
+    const params = new URLSearchParams();
+    params.set('topic', newTopic);
+    params.set('lang', newLang);
+    if (newQuery) {
+      params.set('q', newQuery);
     }
-  } catch {
-    // fall back silently
-  }
-  return items;
-}
+    router.push(`/news?${params.toString()}`);
+  };
 
-export async function GET(req: Request) {
-  const u = new URL(req.url);
-  const country = (u.searchParams.get("country") ?? "gb").toLowerCase();
-  const topic   = (u.searchParams.get("topic") ?? "world").toLowerCase();
-  const lang    = (u.searchParams.get("lang") ?? "en").toLowerCase();
-  const q       = (u.searchParams.get("q") ?? "").trim();
-  const count   = Math.max(3, Math.min(20, Number(u.searchParams.get("count") ?? "10") || 10));
+  const handleFilterChange = (newTopic: string, newLang: string) => {
+    updateURL(newTopic, newLang, q);
+  };
 
-  const feedUrls = selectFeeds(country, topic);
-  const out: Item[] = [];
+  const handleSearch = (query: string) => {
+    updateURL(topic, lang, query);
+  };
 
-  for (const feed of feedUrls) {
-    try {
-      const xml = await fetchText(feed);
-      const rows = parseRSS(xml).slice(0, 10);
-      for (const r of rows) {
-        out.push({
-          title: r.title,
-          summary: r.summary || r.title,
-          url: r.link,
-          source: new URL(r.link).hostname.replace(/^www\\./, ""),
-          topic,
-          lang
+  useEffect(() => {
+    const fetchNews = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const params = new URLSearchParams({ topic, lang });
+        if (q) params.set('q', q);
+        
+        const response = await fetch(`/api/news?${params.toString()}`, {
+          cache: 'no-store'
         });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch news');
+        }
+        
+        const data: NewsResponse = await response.json();
+        setNews(data);
+      } catch (err) {
+        setError('Failed to load news. Please try again.');
+        console.error('Error fetching news:', err);
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      // Ignore failed feed; continue
-    }
-  }
+    };
 
-  // optional keyword filter
-  let items = out;
-  if (q) {
-    const qq = q.toLowerCase();
-    items = items.filter(it =>
-      it.title.toLowerCase().includes(qq) ||
-      it.summary.toLowerCase().includes(qq) ||
-      it.source.toLowerCase().includes(qq)
-    );
-  }
+    fetchNews();
+  }, [topic, lang, q]);
 
-  // trim and dedupe by URL
-  const seen = new Set<string>();
-  const compact: Item[] = [];
-  for (const it of items) {
-    if (!seen.has(it.url)) {
-      seen.add(it.url);
-      compact.push(it);
-    }
-  }
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Diner Pordin News</h1>
+          <p className="text-gray-600">Latest headlines from around the world</p>
+        </header>
 
-  let finalItems = compact.slice(0, count);
+        {/* Filters and Search */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+          <FilterChips
+            currentTopic={topic}
+            currentLang={lang}
+            onFilterChange={handleFilterChange}
+          />
+          <SearchBox
+            currentQuery={q}
+            onSearch={handleSearch}
+          />
+        </div>
 
-  // Optional AI summarization (no-op if no key)
-  try {
-    finalItems = await summarizeWithOpenAI(finalItems, lang);
-  } catch {
-    // ignore AI failures
-  }
+        {/* Meta Info */}
+        {news?.meta && (
+          <div className="mb-6 p-4 bg-white rounded-lg shadow-sm">
+            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+              <span>Provider: {news.meta.provider}</span>
+              <span>Topic: {news.meta.topic}</span>
+              <span>Language: {news.meta.lang.toUpperCase()}</span>
+              <span>Country: {news.meta.country.toUpperCase()}</span>
+              {news.meta.warning && (
+                <span className="text-yellow-600">{news.meta.warning}</span>
+              )}
+            </div>
+          </div>
+        )}
 
-  return NextResponse.json({ items: finalItems }, { status: 200 });
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && <LoadingSkeleton />}
+
+        {/* News Items */}
+        {!loading && news && (
+          <div className="space-y-6">
+            {news.items.length > 0 ? (
+              news.items.map((item, index) => (
+                <NewsCard key={`${item.url}-${index}`} item={item} />
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No news found for your selection.</p>
+                <p className="text-gray-400 mt-2">Try changing filters or search terms.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer Disclaimer */}
+        <footer className="mt-12 pt-6 border-t border-gray-200">
+          <p className="text-center text-sm text-gray-500">
+            News aggregated from various RSS feeds. Summaries may be AI-generated.
+          </p>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// Main page with Suspense boundary
+export default function NewsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading news...</p>
+        </div>
+      </div>
+    }>
+      <NewsContent />
+    </Suspense>
+  );
 }
