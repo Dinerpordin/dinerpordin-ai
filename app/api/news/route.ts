@@ -1,12 +1,12 @@
 // app/api/news/route.ts
 // -------------------------------------------------------------------
-// Option A: Force RSS headlines (no API keys).
-// - Use ?provider=rss in the URL to bypass paid providers, OR
-// - Set Vercel env var FORCE_RSS=1 to make RSS the default.
-// This endpoint ALWAYS returns JSON: { articles: Article[], ... }.
+// Option A: RSS headlines only (no API keys).
+// - Add ?provider=rss to URLs OR set Vercel env var FORCE_RSS=1
+//   to force RSS without changing links.
+// - Always returns JSON: { articles: Article[], country, topic, lang, ... }
 // -------------------------------------------------------------------
 
-export const revalidate = 600;  // cache for 10 minutes (at edge/CDN)
+export const revalidate = 600; // 10 minutes CDN revalidate
 export const runtime = 'nodejs';
 
 type Article = {
@@ -24,8 +24,8 @@ function json(body: any, status = 200) {
 }
 
 const ALLOWED_TOPICS = new Set([
-  'breaking-news', 'world', 'nation', 'business', 'technology',
-  'entertainment', 'sports', 'science', 'health'
+  'breaking-news','world','nation','business',
+  'technology','entertainment','sports','science','health'
 ]);
 
 function clampTopic(raw?: string | null) {
@@ -33,6 +33,7 @@ function clampTopic(raw?: string | null) {
   return ALLOWED_TOPICS.has(t) ? t : undefined;
 }
 
+// ---------- SINGLE GET HANDLER ----------
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const country = (searchParams.get('country') || 'gb').toLowerCase();
@@ -40,29 +41,23 @@ export async function GET(req: Request) {
   const lang    = (searchParams.get('lang') || 'en').toLowerCase();
   const q       = searchParams.get('q') || undefined;
 
-  // 🔧 Emergency override – force RSS when asked, or via env flag
+  // We can allow forcing via query or env; either way we use RSS here.
   const forceRSS = searchParams.get('provider') === 'rss' || process.env.FORCE_RSS === '1';
-  if (forceRSS) {
-    const rss = await fromRSS({ country, topic, lang, q });
-    return json({
-      articles: rss.articles,
-      country, topic, lang,
-      provider: 'rss',
-      warning: rss.warning ?? null,
-    });
-  }
 
-  // (You can add paid JSON providers back later. For now, default to RSS.)
+  // (In future you can call paid providers first and fallback to RSS.
+  // For stability today we just serve RSS so you have headlines now.)
   const rss = await fromRSS({ country, topic, lang, q });
+
   return json({
     articles: rss.articles,
     country, topic, lang,
     provider: 'rss',
     warning: rss.warning ?? null,
+    forced: forceRSS ? true : undefined,
   });
 }
 
-// ---------------------- RSS fallback (no keys) ----------------------
+// ---------------------- RSS implementation ----------------------
 
 async function fromRSS({
   country, topic, lang, q
@@ -74,7 +69,7 @@ async function fromRSS({
     try {
       const r = await fetch(url, { cache: 'no-store' });
       const xml = await r.text();
-      const items = parseRSS(xml).slice(0, 6); // take a few from each feed
+      const items = parseRSS(xml).slice(0, 6);
       const mapped: Article[] = items.map(it => ({
         title: it.title,
         url: it.link,
@@ -84,7 +79,7 @@ async function fromRSS({
       all = all.concat(mapped);
       if (all.length >= 12) break;
     } catch {
-      // ignore a broken feed and continue
+      // skip broken feed and continue
     }
   }
 
@@ -97,7 +92,6 @@ async function fromRSS({
 }
 
 function selectFeeds(topic: string, country: string): string[] {
-  // Stable, globally accessible feeds that often include Bangladesh/World items.
   const world = [
     'https://feeds.bbci.co.uk/news/world/rss.xml',
     'https://www.aljazeera.com/xml/rss/all.xml',
@@ -113,15 +107,14 @@ function selectFeeds(topic: string, country: string): string[] {
     'https://www.engadget.com/rss.xml',
   ];
 
-  // Basic mapping
   if (topic === 'sports') return sports;
   if (topic === 'technology') return technology;
 
-  // You can add more specialized feeds per country if desired.
+  // You can branch on `country` here to add region-specific feeds later.
   return world; // default
 }
 
-// -------------- tiny RSS parser (no external deps) ------------------
+// -------------------- tiny RSS parser (no deps) -------------------
 
 function parseRSS(xml: string) {
   const items: any[] = [];
