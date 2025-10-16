@@ -1,138 +1,81 @@
 // app/news/page.tsx
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+import Link from "next/link";
 
-type Search = { [key: string]: string | string[] | undefined };
+type Item = {
+  title: string;
+  summary: string;
+  url: string;
+  source: string;
+  topic: string;
+  lang: string;
+};
 
-function getParam(sp: Search, key: string): string | undefined {
-  const v = sp[key];
-  return Array.isArray(v) ? v[0] : v || undefined;
-}
-
-function buildHref(sp: Search, patch: Record<string, string | undefined>) {
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) {
-    if (v === undefined) continue;
-    if (Array.isArray(v)) v.forEach((vv) => params.append(k, vv));
-    else params.set(k, v);
-  }
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === undefined || v === '') params.delete(k);
-    else {
-      const current = params.get(k);
-      if (current === v) params.delete(k); // toggle off
-      else params.set(k, v);
-    }
-  }
-  const q = params.toString();
-  return q ? `/news?${q}` : `/news`;
-}
-
-export default async function Page({ searchParams }: { searchParams: Search }) {
-  const country = (getParam(searchParams, 'country') ?? 'gb').toLowerCase();
-  const topic   = (getParam(searchParams, 'topic')   ?? 'world').toLowerCase();
-  const lang    = (getParam(searchParams, 'lang')    ?? 'en').toLowerCase();
-  const q       = getParam(searchParams, 'q');
-
-  const qs = new URLSearchParams({ country, topic, lang, max: '12' });
-  if (q) qs.set('q', q);
-
-  const base =
-    (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    'http://localhost:3000';
-
-  let items: any[] = [];
-  let loadErr: string | null = null;
-
-  try {
-    const r = await fetch(`${base}/api/news?${qs.toString()}`, {
-      cache: 'no-store',
-      headers: { 'x-internal-ssr': '1' },
-    });
-
-    const ct = r.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      const text = await r.text().catch(() => '');
-      loadErr = `News API returned non-JSON (${r.status} ${r.statusText}).`
-        + (text ? ` Details: ${text.slice(0, 160)}` : '');
-    } else {
-      const data = await r.json().catch(() => null);
-      if (!data) loadErr = 'Could not parse news JSON.';
-      else if (Array.isArray((data as any).articles)) items = (data as any).articles;
-      else if ((data as any).error) loadErr = (data as any).error;
-      else loadErr = 'No articles found.';
-    }
-  } catch (e: any) {
-    loadErr = e?.message || 'Failed to load headlines.';
-  }
-
-  const hrefWorld      = buildHref(searchParams, { topic: 'world' });
-  const hrefBangladesh = buildHref(searchParams, { country: 'bd' });
-  const hrefSports     = buildHref(searchParams, { topic: 'sports' });
-  const hrefTechnology = buildHref(searchParams, { topic: 'technology' });
-  const hrefEN         = buildHref(searchParams, { lang: 'en' });
-  const hrefBN         = buildHref(searchParams, { lang: 'bn' });
-
-  const isWorld  = topic === 'world';
-  const isBD     = country === 'bd';
-  const isSports = topic === 'sports';
-  const isTech   = topic === 'technology';
-  const isEN     = lang === 'en';
-  const isBN     = lang === 'bn';
-
+function pill(href: string, active: boolean, label: string) {
   return (
-    <section>
-      {/* Hide the site-wide health disclaimer only on the News page */}
-      <style>{`.site-disclaimer{display:none !important}`}</style>
-
-      <h1 className="text-2xl font-semibold mb-3">Top headlines</h1>
-
-      <div className="flex flex-wrap gap-2 mb-4">
-        <Pill href={hrefWorld}      active={isWorld}  label="World" />
-        <Pill href={hrefBangladesh} active={isBD}     label="Bangladesh" />
-        <Pill href={hrefSports}     active={isSports} label="Sports" />
-        <Pill href={hrefTechnology} active={isTech}   label="Technology" />
-        <Pill href={hrefEN}         active={isEN}     label="EN" />
-        <Pill href={hrefBN}         active={isBN}     label="বাংলা" />
-      </div>
-
-      {/* Simple server GET search to preserve filters */}
-      <form action="/news" className="mb-3">
-        <input name="q" defaultValue={q || ''} placeholder="Search headlines…"
-               className="w-full md:w-96 border rounded px-3 py-2 mr-2" />
-        <input type="hidden" name="country" value={country} />
-        <input type="hidden" name="topic"   value={topic} />
-        <input type="hidden" name="lang"    value={lang} />
-        <button className="px-3 py-2 rounded border bg-white">Search</button>
-      </form>
-
-      {loadErr && (
-        <div className="p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded">
-          {loadErr}
-        </div>
-      )}
-
-      {!loadErr && items.length === 0 && (
-        <div className="text-slate-500">No headlines for these filters.</div>
-      )}
-
-      <div className="mt-4 grid md:grid-cols-3 gap-4">
-        {items.map((a, i) => (
-          <a key={i} className="border rounded p-3 bg-white hover:bg-slate-50" href={a.url} target="_blank">
-            {a.urlToImage && (
-              <img src={a.urlToImage} alt={a.title} className="w-full h-36 object-cover rounded mb-2" />
-            )}
-            <div className="font-medium">{a.title}</div>
-            <div className="text-xs text-slate-500">{a.source?.name}</div>
-          </a>
-        ))}
-      </div>
-    </section>
+    <Link
+      href={href}
+      className={`px-4 py-2 rounded-full border transition
+        ${active ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"}`}
+    >
+      {label}
+    </Link>
   );
 }
 
-function Pill({ href, active, label }: { href: string; active: boolean; label: string }) {
-  const cls = active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700';
-  return <a href={href} className={`px-3 py-1 rounded-full border ${cls}`}>{label}</a>;
+export default async function NewsPage({
+  searchParams,
+}: {
+  searchParams?: { country?: string; topic?: string; lang?: string; q?: string; count?: string };
+}) {
+  const country = (searchParams?.country ?? "gb").toLowerCase();
+  const topic   = (searchParams?.topic ?? "world").toLowerCase();
+  const lang    = (searchParams?.lang ?? "en").toLowerCase();
+  const q       = searchParams?.q?.trim() ?? "";
+  const count   = searchParams?.count ?? "8";
+
+  const qs = new URLSearchParams({ country, topic, lang, count });
+  if (q) qs.set("q", q);
+
+  // ✅ Call the new API route
+  const res = await fetch(`/api/headlines?${qs.toString()}`, { cache: "no-store" });
+  const data = await res.json() as { items: Item[] };
+
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  return (
+    <main className="max-w-6xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-semibold mb-6">Top headlines</h1>
+
+      {/* Filter pills */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        {pill(`/news?country=${country}&topic=world&lang=${lang}`, topic === "world", "World")}
+        {pill(`/news?country=bd&topic=${topic}&lang=${lang}`, country === "bd", "Bangladesh")}
+        {pill(`/news?country=${country}&topic=sports&lang=${lang}`, topic === "sports", "Sports")}
+        {pill(`/news?country=${country}&topic=technology&lang=${lang}`, topic === "technology", "Technology")}
+        {pill(`/news?country=${country}&topic=${topic}&lang=en`, lang === "en", "EN")}
+        {pill(`/news?country=${country}&topic=${topic}&lang=bn`, lang === "bn", "বাংলা")}
+      </div>
+
+      {/* Results */}
+      {items.length === 0 ? (
+        <div className="rounded border bg-yellow-50 p-4 text-sm">
+          No stories found. Try a different filter.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {items.map((it, i) => (
+            <article key={i} className="rounded-lg border p-4 bg-white">
+              <a href={it.url} target="_blank" rel="noreferrer" className="block group">
+                <h2 className="text-lg font-semibold group-hover:underline">{it.title}</h2>
+              </a>
+              <p className="text-gray-700 mt-2">{it.summary}</p>
+              <div className="text-xs text-gray-500 mt-3">
+                {it.source} · {it.topic.toUpperCase()} · {it.lang.toUpperCase()}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </main>
+  );
 }
