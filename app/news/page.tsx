@@ -1,6 +1,5 @@
-// app/news/page.tsx
-import Link from "next/link";
-import { headers } from "next/headers";
+// app/api/headlines/route.ts
+import { NextResponse } from "next/server";
 
 type Item = {
   title: string;
@@ -11,101 +10,195 @@ type Item = {
   lang: string;
 };
 
-function pill(href: string, active: boolean, label: string) {
-  return (
-    <Link
-      href={href}
-      className={`px-4 py-2 rounded-full border transition
-        ${active ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"}`}
-    >
-      {label}
-    </Link>
-  );
+// --- Very small RSS fetcher/normalizer (no external libs) ---
+async function fetchText(url: string): Promise<string> {
+  const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
+  if (!r.ok) throw new Error(`Fetch ${url} -> ${r.status}`);
+  return await r.text();
 }
 
-export default async function NewsPage({
-  searchParams,
-}: {
-  searchParams?: { country?: string; topic?: string; lang?: string; q?: string; count?: string };
-}) {
-  const country = (searchParams?.country ?? "gb").toLowerCase();
-  const topic   = (searchParams?.topic ?? "world").toLowerCase();
-  const lang    = (searchParams?.lang ?? "en").toLowerCase();
-  const q       = searchParams?.q?.trim() ?? "";
-  const count   = searchParams?.count ?? "8";
+function extractTags(xml: string, tag: string): string[] {
+  const out: string[] = [];
+  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
+  let m;
+  while ((m = re.exec(xml))) out.push(m[1].replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1").trim());
+  return out;
+}
 
-  // Build the query string for the API call
-  const qs = new URLSearchParams({ country, topic, lang, count });
-  if (q) qs.set("q", q);
+function strip(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\\s+/g, " ").trim();
+}
 
-  // ✅ Build absolute origin for server-side fetch
-  const hdrs = headers();
-  const proto = hdrs.get("x-forwarded-proto") ?? "https";
-  const host  = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "localhost:3000";
-  const origin = `${proto}://${host}`;
-
-  let items: Item[] = [];
-  let errorMsg = "";
-
-  try {
-    const res = await fetch(`${origin}/api/headlines?${qs.toString()}`, {
-      // SSR: do not cache
-      cache: "no-store",
-      // Pass-through headers if you want (not strictly required)
-      headers: { "accept": "application/json" },
-    });
-
-    if (!res.ok) {
-      errorMsg = `Headlines API returned ${res.status}`;
-    } else {
-      const data = (await res.json()) as { items?: Item[] };
-      items = Array.isArray(data.items) ? data.items : [];
-    }
-  } catch (err: any) {
-    errorMsg = "Failed to fetch headlines.";
+// Minimal “parser”: supports common RSS/Atom tags
+function parseRSS(xml: string): { title: string; link: string; summary: string }[] {
+  // Try RSS <item>
+  const items = xml.split(/<item>/i).slice(1);
+  if (items.length) {
+    return items.map(block => {
+      const title = strip((block.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
+      const link  = strip(block.match(/<link[^>]*>([\\s\\S]*?)<\\/link>/i)?.[1] ?? "");
+      const desc  = strip(block.match(/<description[^>]*>([\\s\\S]*?)<\\/description>/i)?.[1] ?? "");
+      const content = strip(block.match(/<content:encoded[^>]*>([\\s\\S]*?)<\\/content:encoded>/i)?.[1] ?? "");
+      return { title, link, summary: content || desc };
+    }).filter(x => x.title && x.link);
   }
 
-  return (
-    <main className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-semibold mb-6">Top headlines</h1>
+  // Try Atom <entry>
+  const entries = xml.split(/<entry>/i).slice(1);
+  if (entries.length) {
+    return entries.map(block => {
+      const title = strip((block.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
+      const link  = (block.match(/<link[^>]*href="([^"]+)"/i)?.[1] ?? "").trim();
+      const sum   = strip((block.match(/<summary[^>]*>([\\s\\S]*?)<\\/summary>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
+      const content = strip((block.match(/<content[^>]*>([\\s\\S]*?)<\\/content>/i)?.[1] ?? "").replace(/<!\\[CDATA\\[(.*?)\\]\\]>/gis, "$1"));
+      return { title, link, summary: content || sum };
+    }).filter(x => x.title && x.link);
+  }
 
-      {/* Filter pills */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        {pill(`/news?country=${country}&topic=world&lang=${lang}`, topic === "world", "World")}
-        {pill(`/news?country=bd&topic=${topic}&lang=${lang}`, country === "bd", "Bangladesh")}
-        {pill(`/news?country=${country}&topic=sports&lang=${lang}`, topic === "sports", "Sports")}
-        {pill(`/news?country=${country}&topic=technology&lang=${lang}`, topic === "technology", "Technology")}
-        {pill(`/news?country=${country}&topic=${topic}&lang=en`, lang === "en", "EN")}
-        {pill(`/news?country=${country}&topic=${topic}&lang=bn`, lang === "bn", "বাংলা")}
-      </div>
+  return [];
+}
 
-      {/* Any API error */}
-      {errorMsg && (
-        <div className="rounded border bg-yellow-50 p-4 text-sm mb-6">
-          {errorMsg}. Try changing filters or refreshing.
-        </div>
-      )}
+// --- feed map (extend any time) ---
+const FEEDS: Record<string, string[]> = {
+  // topic -> list of feeds
+  world: [
+    "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "https://rss.cnn.com/rss/edition_world.rss",
+    "https://www.aljazeera.com/xml/rss/all.xml",
+    "https://www.nytimes.com/services/xml/rss/nyt/World.xml"
+  ],
+  sports: [
+    "https://www.espn.com/espn/rss/news",
+    "https://www.theguardian.com/uk/sport/rss"
+  ],
+  technology: [
+    "https://www.theverge.com/rss/index.xml",
+    "https://www.techmeme.com/feed.xml"
+  ],
+  bangladesh: [
+    // English
+    "https://www.thedailystar.net/frontpage/rss.xml",
+    // Bangla (Prothom Alo Bangla)
+    "https://www.prothomalo.com/feed"
+  ]
+};
 
-      {/* Results */}
-      {(!items || items.length === 0) && !errorMsg ? (
-        <div className="rounded border bg-yellow-50 p-4 text-sm">
-          No stories found. Try a different filter.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {items.map((it, i) => (
-            <article key={i} className="rounded-lg border p-4 bg-white">
-              <a href={it.url} target="_blank" rel="noreferrer" className="block group">
-                <h2 className="text-lg font-semibold group-hover:underline">{it.title}</h2>
-              </a>
-              <p className="text-gray-700 mt-2">{it.summary}</p>
-              <div className="text-xs text-gray-500 mt-3">
-                {it.source} · {it.topic.toUpperCase()} · {it.lang.toUpperCase()}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </main>
-  );
+// Map (country, topic) to feed keys
+function selectFeeds(country: string, topic: string): string[] {
+  if (country === "bd") return FEEDS.bangladesh;
+  if (FEEDS[topic]) return FEEDS[topic];
+  return FEEDS.world;
+}
+
+// Optional OpenAI summarizer
+async function summarizeWithOpenAI(items: Item[], lang: string): Promise<Item[]> {
+  if (process.env.FORCE_SIMPLE_SUMMARY === "1") return items;
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return items; // no-op if no key
+
+  // Keep prompt short; summarize titles+snippets into the same language.
+  const prompt = `Summarize each of the following news items into a short one-sentence summary in language code "${lang}". 
+Return JSON array of objects with keys: title, summary, url, source, topic, lang. 
+Input: ${JSON.stringify(items.slice(0, 12))}`;
+
+  // Use the OpenAI completions/chat API via fetch to avoid extra deps
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${key}`,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 600
+    })
+  });
+
+  if (!r.ok) return items;
+  const data = await r.json();
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  if (!text) return items;
+
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      // validate minimal structure
+      return parsed.filter((x: any) => x?.title && x?.url).map((x: any) => ({
+        title: String(x.title),
+        summary: String(x.summary ?? ""),
+        url: String(x.url),
+        source: String(x.source ?? ""),
+        topic: String(x.topic ?? ""),
+        lang: String(x.lang ?? lang)
+      }));
+    }
+  } catch {
+    // fall back silently
+  }
+  return items;
+}
+
+export async function GET(req: Request) {
+  const u = new URL(req.url);
+  const country = (u.searchParams.get("country") ?? "gb").toLowerCase();
+  const topic   = (u.searchParams.get("topic") ?? "world").toLowerCase();
+  const lang    = (u.searchParams.get("lang") ?? "en").toLowerCase();
+  const q       = (u.searchParams.get("q") ?? "").trim();
+  const count   = Math.max(3, Math.min(20, Number(u.searchParams.get("count") ?? "10") || 10));
+
+  const feedUrls = selectFeeds(country, topic);
+  const out: Item[] = [];
+
+  for (const feed of feedUrls) {
+    try {
+      const xml = await fetchText(feed);
+      const rows = parseRSS(xml).slice(0, 10);
+      for (const r of rows) {
+        out.push({
+          title: r.title,
+          summary: r.summary || r.title,
+          url: r.link,
+          source: new URL(r.link).hostname.replace(/^www\\./, ""),
+          topic,
+          lang
+        });
+      }
+    } catch {
+      // Ignore failed feed; continue
+    }
+  }
+
+  // optional keyword filter
+  let items = out;
+  if (q) {
+    const qq = q.toLowerCase();
+    items = items.filter(it =>
+      it.title.toLowerCase().includes(qq) ||
+      it.summary.toLowerCase().includes(qq) ||
+      it.source.toLowerCase().includes(qq)
+    );
+  }
+
+  // trim and dedupe by URL
+  const seen = new Set<string>();
+  const compact: Item[] = [];
+  for (const it of items) {
+    if (!seen.has(it.url)) {
+      seen.add(it.url);
+      compact.push(it);
+    }
+  }
+
+  let finalItems = compact.slice(0, count);
+
+  // Optional AI summarization (no-op if no key)
+  try {
+    finalItems = await summarizeWithOpenAI(finalItems, lang);
+  } catch {
+    // ignore AI failures
+  }
+
+  return NextResponse.json({ items: finalItems }, { status: 200 });
 }
