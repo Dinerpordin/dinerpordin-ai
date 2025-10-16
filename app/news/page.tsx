@@ -1,5 +1,6 @@
 // app/news/page.tsx
 import Link from "next/link";
+import { headers } from "next/headers";
 
 type Item = {
   title: string;
@@ -33,14 +34,36 @@ export default async function NewsPage({
   const q       = searchParams?.q?.trim() ?? "";
   const count   = searchParams?.count ?? "8";
 
+  // Build the query string for the API call
   const qs = new URLSearchParams({ country, topic, lang, count });
   if (q) qs.set("q", q);
 
-  // ✅ Call the new API route
-  const res = await fetch(`/api/headlines?${qs.toString()}`, { cache: "no-store" });
-  const data = await res.json() as { items: Item[] };
+  // ✅ Build absolute origin for server-side fetch
+  const hdrs = headers();
+  const proto = hdrs.get("x-forwarded-proto") ?? "https";
+  const host  = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "localhost:3000";
+  const origin = `${proto}://${host}`;
 
-  const items = Array.isArray(data.items) ? data.items : [];
+  let items: Item[] = [];
+  let errorMsg = "";
+
+  try {
+    const res = await fetch(`${origin}/api/headlines?${qs.toString()}`, {
+      // SSR: do not cache
+      cache: "no-store",
+      // Pass-through headers if you want (not strictly required)
+      headers: { "accept": "application/json" },
+    });
+
+    if (!res.ok) {
+      errorMsg = `Headlines API returned ${res.status}`;
+    } else {
+      const data = (await res.json()) as { items?: Item[] };
+      items = Array.isArray(data.items) ? data.items : [];
+    }
+  } catch (err: any) {
+    errorMsg = "Failed to fetch headlines.";
+  }
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
@@ -56,8 +79,15 @@ export default async function NewsPage({
         {pill(`/news?country=${country}&topic=${topic}&lang=bn`, lang === "bn", "বাংলা")}
       </div>
 
+      {/* Any API error */}
+      {errorMsg && (
+        <div className="rounded border bg-yellow-50 p-4 text-sm mb-6">
+          {errorMsg}. Try changing filters or refreshing.
+        </div>
+      )}
+
       {/* Results */}
-      {items.length === 0 ? (
+      {(!items || items.length === 0) && !errorMsg ? (
         <div className="rounded border bg-yellow-50 p-4 text-sm">
           No stories found. Try a different filter.
         </div>
