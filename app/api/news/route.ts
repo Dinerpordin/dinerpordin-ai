@@ -1,58 +1,109 @@
-// app/api/news/route.ts
 import { NextRequest } from 'next/server';
 
-// Configuration for all free providers
+// Curated news sources based on your requirements
 const PROVIDERS = {
-  // RSS Feeds (always free, primary fallback)
-  rss: {
-    world: [
-      'https://feeds.bbci.co.uk/news/world/rss.xml',
-      'https://rss.cnn.com/rss/edition.rss',
-      'https://www.theguardian.com/world/rss'
-    ],
-    bangladesh: [
-      'https://en.prothomalo.com/feed/',
-      'https://www.prothomalo.com/feed',
-      'https://www.thedailystar.net/frontpage/rss.xml'
-    ],
-    sports: [
-      'https://www.espn.com/espn/rss/news',
-      'https://feeds.bbci.co.uk/sport/rss.xml',
-      'https://www.skysports.com/rss/12040'
-    ],
-    technology: [
-      'https://www.theverge.com/rss/index.xml',
-      'https://feeds.feedburner.com/TechCrunch/',
-      'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml'
-    ]
-  },
+  // World News (Global Coverage)
+  world: [
+    'https://feeds.bbci.co.uk/news/world/rss.xml',
+    'https://feeds.reuters.com/Reuters/worldNews',
+    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+    'https://www.theguardian.com/world/rss',
+    'https://www.aljazeera.com/xml/rss/all.xml'
+  ],
   
-  // NewsAPI.org (free tier - 100 requests/day)
-  newsapi: (apiKey: string) => ({
-    world: `https://newsapi.org/v2/top-headlines?category=general&pageSize=15&apiKey=${apiKey}`,
-    bangladesh: `https://newsapi.org/v2/top-headlines?country=bd&pageSize=15&apiKey=${apiKey}`,
-    sports: `https://newsapi.org/v2/top-headlines?category=sports&pageSize=15&apiKey=${apiKey}`,
-    technology: `https://newsapi.org/v2/top-headlines?category=technology&pageSize=15&apiKey=${apiKey}`
-  }),
+  // Bangladesh News
+  bangladesh: [
+    'https://www.thedailystar.net/frontpage/rss.xml',
+    'https://www.dhakatribune.com/articles/feed',
+    'https://en.prothomalo.com/feed/',
+    'https://bdnews24.com/rss',
+    'https://www.tbsnews.net/feed'
+  ],
   
-  // GNews API (free tier - 100 requests/day)
-  gnews: (apiKey: string) => ({
-    world: `https://gnews.io/api/v4/top-headlines?category=general&lang=en&max=10&apikey=${apiKey}`,
-    bangladesh: `https://gnews.io/api/v4/top-headlines?country=bd&lang=en&max=10&apikey=${apiKey}`,
-    sports: `https://gnews.io/api/v4/top-headlines?category=sports&lang=en&max=10&apikey=${apiKey}`,
-    technology: `https://gnews.io/api/v4/top-headlines?category=technology&lang=en&max=10&apikey=${apiKey}`
-  }),
+  // Economy (World & Bangladesh Focus)
+  economy: [
+    'https://feeds.reuters.com/reuters/businessNews',
+    'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
+    'https://www.ft.com/rss/world',
+    'https://www.bloomberg.com/feeds/podcasts/odd_lots.xml',
+    'https://www.thedailystar.net/business/rss.xml'
+  ],
   
-  // NewsData.io (free tier - 200 requests/day)
-  newsdata: (apiKey: string) => ({
-    world: `https://newsdata.io/api/1/news?apikey=${apiKey}&category=top&language=en`,
-    bangladesh: `https://newsdata.io/api/1/news?apikey=${apiKey}&country=bd&language=en`,
-    sports: `https://newsdata.io/api/1/news?apikey=${apiKey}&category=sports&language=en`,
-    technology: `https://newsdata.io/api/1/news?apikey=${apiKey}&category=technology&language=en`
-  })
+  // Sports: Football (Global & Bangladesh Focus)
+  football: [
+    'https://feeds.bbci.co.uk/sport/football/rss.xml',
+    'https://www.theguardian.com/football/rss',
+    'https://www.espn.com/espn/rss/soccer/news',
+    'https://www.goal.com/feeds/en-us/news',
+    'https://www.thedailystar.net/sports/football/rss.xml'
+  ],
+  
+  // Sports: Cricket (Global & Bangladesh Focus)
+  cricket: [
+    'https://www.espncricinfo.com/rss/content/story/feeds/0.xml',
+    'https://feeds.bbci.co.uk/sport/cricket/rss.xml',
+    'https://www.cricbuzz.com/rss/news',
+    'https://www.icc-cricket.com/news.rss',
+    'https://www.thedailystar.net/sports/cricket/rss.xml'
+  ]
 };
 
-// AI Summarization Providers with fallback order
+// Source display names mapping
+const SOURCE_DISPLAY_NAMES: { [key: string]: string } = {
+  'bbci.co.uk': 'BBC News',
+  'reuters.com': 'Reuters',
+  'nytimes.com': 'The New York Times',
+  'theguardian.com': 'The Guardian',
+  'aljazeera.com': 'Al Jazeera',
+  'thedailystar.net': 'The Daily Star',
+  'dhakatribune.com': 'Dhaka Tribune',
+  'prothomalo.com': 'Prothom Alo',
+  'bdnews24.com': 'bdnews24.com',
+  'tbsnews.net': 'The Business Standard',
+  'ft.com': 'Financial Times',
+  'bloomberg.com': 'Bloomberg',
+  'espn.com': 'ESPN',
+  'goal.com': 'Goal.com',
+  'espncricinfo.com': 'ESPNcricinfo',
+  'cricbuzz.com': 'Cricbuzz',
+  'icc-cricket.com': 'ICC'
+};
+
+// Category metadata
+const CATEGORY_METADATA = {
+  world: {
+    name: 'World News',
+    description: 'Global politics, conflicts, and international affairs',
+    icon: '🌍',
+    color: 'blue'
+  },
+  bangladesh: {
+    name: 'Bangladesh',
+    description: 'Local politics, society, and national events',
+    icon: '🇧🇩',
+    color: 'green'
+  },
+  economy: {
+    name: 'Economy',
+    description: 'Global markets, trade, and financial news',
+    icon: '💹',
+    color: 'purple'
+  },
+  football: {
+    name: 'Football',
+    description: 'Global soccer news and Bangladesh football',
+    icon: '⚽',
+    color: 'orange'
+  },
+  cricket: {
+    name: 'Cricket',
+    description: 'International cricket and Bangladesh matches',
+    icon: '🏏',
+    color: 'red'
+  }
+};
+
+// AI Summarization Providers
 const AI_PROVIDERS = [
   {
     name: 'huggingface',
@@ -74,7 +125,7 @@ const AI_PROVIDERS = [
             body: JSON.stringify({
               inputs: text.slice(0, 1024),
               parameters: { 
-                max_length: 100, 
+                max_length: 80, 
                 min_length: 40,
                 do_sample: false 
               }
@@ -89,8 +140,7 @@ const AI_PROVIDERS = [
         const result = await response.json();
         return result[0]?.summary_text || text;
       } catch (error) {
-        console.warn('Hugging Face summarization failed:', error);
-        throw error; // Let the fallback chain continue
+        throw error;
       }
     }
   },
@@ -110,10 +160,9 @@ const AI_PROVIDERS = [
           },
           signal: controller.signal,
           body: JSON.stringify({
-            text: text.slice(0, 2500),
+            text: text.slice(0, 2000),
             length: 'short',
-            format: 'paragraph',
-            model: 'summarize-xlarge'
+            format: 'paragraph'
           }),
         });
         
@@ -124,51 +173,6 @@ const AI_PROVIDERS = [
         const result = await response.json();
         return result.summary || text;
       } catch (error) {
-        console.warn('Cohere summarization failed:', error);
-        throw error;
-      }
-    }
-  },
-  {
-    name: 'openai',
-    enabled: !!process.env.OPENAI_API_KEY,
-    summarize: async (text: string): Promise<string> => {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: 'gpt-3.5-turbo',
-            messages: [
-              {
-                role: 'system',
-                content: 'Summarize this news article in 40-60 words. Be concise, informative, and maintain key facts.'
-              },
-              { 
-                role: 'user', 
-                content: text.slice(0, 1800) 
-              }
-            ],
-            max_tokens: 100,
-            temperature: 0.3
-          })
-        });
-
-        clearTimeout(timeout);
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const data = await response.json();
-        return data.choices[0]?.message?.content?.trim() || text;
-      } catch (error) {
-        console.warn('OpenAI summarization failed:', error);
         throw error;
       }
     }
@@ -176,6 +180,7 @@ const AI_PROVIDERS = [
 ];
 
 interface NewsItem {
+  id: string;
   title: string;
   summary: string;
   url: string;
@@ -184,20 +189,21 @@ interface NewsItem {
   lang: string;
   publishedAt?: string;
   imageUrl?: string;
+  category: string;
+  readTime?: number;
 }
 
-// Enhanced RSS parser with better error handling
-function parseRSS(xml: string, topic: string, lang: string): NewsItem[] {
+// Enhanced RSS parser with better content extraction
+function parseRSS(xml: string, category: string, lang: string): NewsItem[] {
   const items: NewsItem[] = [];
   
   try {
-    // More robust item extraction
     const itemRegex = /<item>[\s\S]*?<\/item>/gi;
     const itemMatches = xml.match(itemRegex) || [];
 
-    for (const itemXml of itemMatches.slice(0, 15)) { // Limit per feed
+    for (const itemXml of itemMatches.slice(0, 20)) {
       try {
-        // Extract title with better handling
+        // Extract title
         const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/i) || 
                           itemXml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
         const title = titleMatch ? cleanText(titleMatch[1]) : '';
@@ -211,12 +217,13 @@ function parseRSS(xml: string, topic: string, lang: string): NewsItem[] {
         const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/i) || 
                          itemXml.match(/<content:encoded>([\s\S]*?)<\/content:encoded>/i) ||
                          itemXml.match(/<content>([\s\S]*?)<\/content>/i);
-        const description = descMatch ? cleanText(descMatch[1]) : '';
+        let description = descMatch ? cleanText(descMatch[1]) : '';
 
         // Extract image
         const imageMatch = itemXml.match(/<media:content[^>]*url="([^"]*)"/i) ||
                           itemXml.match(/<enclosure[^>]*url="([^"]*)"/i) ||
-                          itemXml.match(/<image>[\s\S]*?<url>([\s\S]*?)<\/url>/i);
+                          itemXml.match(/<image>[\s\S]*?<url>([\s\S]*?)<\/url>/i) ||
+                          itemXml.match(/<media:thumbnail[^>]*url="([^"]*)"/i);
         const imageUrl = imageMatch ? cleanText(imageMatch[1]) : undefined;
 
         // Extract publish date
@@ -225,32 +232,40 @@ function parseRSS(xml: string, topic: string, lang: string): NewsItem[] {
         const publishedAt = dateMatch ? cleanText(dateMatch[1]) : undefined;
 
         if (title && url) {
-          // Determine source from URL or feed
-          let source = 'RSS Feed';
+          // Determine source from URL
+          let source = 'Unknown';
           try {
             const domain = new URL(url).hostname.replace('www.', '');
-            source = domain.split('.')[0]
-              .replace(/-/g, ' ')
-              .split(' ')
-              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(' ');
-          } catch {
-            // Keep default source name
-          }
+            source = SOURCE_DISPLAY_NAMES[domain] || 
+                    domain.split('.')[0]
+                      .replace(/-/g, ' ')
+                      .split(' ')
+                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ');
+          } catch {}
+
+          // Calculate read time
+          const content = title + ' ' + description;
+          const readTime = Math.max(1, Math.ceil(content.split(/\s+/).length / 200));
+
+          // Generate unique ID
+          const id = Buffer.from(url).toString('base64').slice(0, 16);
 
           items.push({
+            id,
             title,
             summary: description || 'No description available',
             url,
             source,
-            topic,
+            topic: category,
             lang: determineLanguage(title + description, lang),
             publishedAt,
-            imageUrl
+            imageUrl,
+            category,
+            readTime
           });
         }
       } catch (itemError) {
-        console.warn('Error parsing individual RSS item:', itemError);
         continue;
       }
     }
@@ -265,7 +280,7 @@ function cleanText(text: string): string {
   if (!text) return '';
   
   return text
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -278,166 +293,25 @@ function cleanText(text: string): string {
 }
 
 function determineLanguage(text: string, defaultLang: string): string {
-  // Simple language detection based on Bengali characters
   const bengaliRegex = /[\u0980-\u09FF]/;
   return bengaliRegex.test(text) ? 'bn' : defaultLang;
 }
 
-// Fetch from NewsAPI.org
-async function fetchFromNewsAPI(topic: string, lang: string): Promise<NewsItem[]> {
-  if (!process.env.NEWS_API_KEY) return [];
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    const url = PROVIDERS.newsapi(process.env.NEWS_API_KEY)[topic as keyof typeof PROVIDERS.rss];
-    const response = await fetch(url, { 
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'DinerPordinNews/1.0'
-      }
-    });
-    
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      console.warn(`NewsAPI returned ${response.status} for topic ${topic}`);
-      return [];
-    }
-    
-    const data = await response.json();
-    
-    if (data.status !== 'ok' || !Array.isArray(data.articles)) {
-      return [];
-    }
-
-    return data.articles.slice(0, 10).map((article: any) => ({
-      title: article.title || 'No title',
-      summary: article.description || 'No description available',
-      url: article.url || '',
-      source: article.source?.name || 'Unknown Source',
-      topic,
-      lang,
-      publishedAt: article.publishedAt,
-      imageUrl: article.urlToImage
-    })).filter((item: NewsItem) => item.title !== 'No title' && item.url);
-    
-  } catch (error) {
-    console.warn('NewsAPI fetch failed:', error);
-    return [];
-  }
-}
-
-// Fetch from GNews
-async function fetchFromGNews(topic: string, lang: string): Promise<NewsItem[]> {
-  if (!process.env.GNEWS_API_KEY) return [];
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    const url = PROVIDERS.gnews(process.env.GNEWS_API_KEY)[topic as keyof typeof PROVIDERS.rss];
-    const response = await fetch(url, { 
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'DinerPordinNews/1.0'
-      }
-    });
-    
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      console.warn(`GNews returned ${response.status} for topic ${topic}`);
-      return [];
-    }
-    
-    const data = await response.json();
-    
-    if (!Array.isArray(data.articles)) {
-      return [];
-    }
-
-    return data.articles.slice(0, 10).map((article: any) => ({
-      title: article.title || 'No title',
-      summary: article.description || 'No content available',
-      url: article.url || '',
-      source: article.source?.name || 'Unknown Source',
-      topic,
-      lang,
-      publishedAt: article.publishedAt,
-      imageUrl: article.image
-    })).filter((item: NewsItem) => item.title !== 'No title' && item.url);
-    
-  } catch (error) {
-    console.warn('GNews fetch failed:', error);
-    return [];
-  }
-}
-
-// Fetch from NewsData.io
-async function fetchFromNewsData(topic: string, lang: string): Promise<NewsItem[]> {
-  if (!process.env.NEWSDATA_API_KEY) return [];
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    const baseUrl = PROVIDERS.newsdata(process.env.NEWSDATA_API_KEY)[topic as keyof typeof PROVIDERS.rss];
-    const url = `${baseUrl}&size=10`;
-    
-    const response = await fetch(url, { 
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'DinerPordinNews/1.0'
-      }
-    });
-    
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      console.warn(`NewsData returned ${response.status} for topic ${topic}`);
-      return [];
-    }
-    
-    const data = await response.json();
-    
-    if (data.status !== 'success' || !Array.isArray(data.results)) {
-      return [];
-    }
-
-    return data.results.slice(0, 10).map((article: any) => ({
-      title: article.title || 'No title',
-      summary: article.description || 'No description available',
-      url: article.link || '',
-      source: article.source_id || 'Unknown Source',
-      topic,
-      lang: article.language || lang,
-      publishedAt: article.pubDate,
-      imageUrl: article.image_url
-    })).filter((item: NewsItem) => item.title !== 'No title' && item.url);
-    
-  } catch (error) {
-    console.warn('NewsData fetch failed:', error);
-    return [];
-  }
-}
-
-// Fetch from RSS feeds
-async function fetchFromRSS(topic: string, lang: string): Promise<NewsItem[]> {
-  const feeds = PROVIDERS.rss[topic as keyof typeof PROVIDERS.rss] || [];
+// Fetch from RSS feeds with better error handling
+async function fetchFromRSS(category: string, lang: string): Promise<NewsItem[]> {
+  const feeds = PROVIDERS[category as keyof typeof PROVIDERS] || [];
   const allItems: NewsItem[] = [];
 
-  // Fetch RSS feeds in parallel with individual timeouts
   const feedPromises = feeds.map(async (feedUrl) => {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(feedUrl, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; DinerPordinNews/1.0; +https://github.com/diner-pordin)'
+          'User-Agent': 'Mozilla/5.0 (compatible; DinerPordinNews/2.0; +https://dinerpordin.com)',
+          'Accept': 'application/rss+xml, application/xml, text/xml'
         }
       });
 
@@ -449,7 +323,7 @@ async function fetchFromRSS(topic: string, lang: string): Promise<NewsItem[]> {
       }
 
       const xml = await response.text();
-      return parseRSS(xml, topic, lang);
+      return parseRSS(xml, category, lang);
     } catch (error) {
       console.warn(`Failed to fetch RSS feed ${feedUrl}:`, error);
       return [];
@@ -477,7 +351,6 @@ async function generateSummary(text: string): Promise<{ summary: string; provide
     return { summary: text, provider: 'none' };
   }
 
-  // Try each AI provider in order until one works
   for (const provider of AI_PROVIDERS) {
     if (provider.enabled) {
       try {
@@ -486,13 +359,12 @@ async function generateSummary(text: string): Promise<{ summary: string; provide
           return { summary, provider: provider.name };
         }
       } catch (error) {
-        // Continue to next provider
         continue;
       }
     }
   }
 
-  // Fallback: truncate long text if no AI available
+  // Fallback: truncate long text
   if (text.length > 200) {
     return { 
       summary: text.slice(0, 197) + '...', 
@@ -505,76 +377,37 @@ async function generateSummary(text: string): Promise<{ summary: string; provide
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const topic = searchParams.get('topic') || 'world';
+  const category = searchParams.get('category') || 'world';
   const lang = searchParams.get('lang') || 'en';
   const searchQuery = searchParams.get('q') || '';
-  const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 50);
+  const limit = Math.min(parseInt(searchParams.get('limit') || '30'), 50);
 
-  console.log(`Fetching news for topic: ${topic}, lang: ${lang}, search: ${searchQuery}`);
-
-  // Build fetch promises for all available providers
-  const fetchPromises = [];
-
-  // Add API providers if configured
-  if (process.env.NEWS_API_KEY) {
-    fetchPromises.push(fetchFromNewsAPI(topic, lang));
-  }
-  
-  if (process.env.GNEWS_API_KEY) {
-    fetchPromises.push(fetchFromGNews(topic, lang));
-  }
-  
-  if (process.env.NEWSDATA_API_KEY) {
-    fetchPromises.push(fetchFromNewsData(topic, lang));
-  }
-
-  // Always include RSS as fallback
-  fetchPromises.push(fetchFromRSS(topic, lang));
+  console.log(`Fetching ${category} news in ${lang}`);
 
   let allItems: NewsItem[] = [];
   let providerStats = {
-    newsapi: 0,
-    gnews: 0,
-    newsdata: 0,
-    rss: 0,
-    failed: 0
+    totalFeeds: PROVIDERS[category as keyof typeof PROVIDERS]?.length || 0,
+    successfulFeeds: 0,
+    failedFeeds: 0
   };
 
   try {
-    // Fetch from all providers in parallel
-    const results = await Promise.allSettled(fetchPromises);
-    
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        const items = result.value;
-        allItems.push(...items);
-        
-        // Track which providers succeeded
-        if (index === 0 && process.env.NEWS_API_KEY) providerStats.newsapi = items.length;
-        else if (index === 1 && process.env.GNEWS_API_KEY) providerStats.gnews = items.length;
-        else if (index === 2 && process.env.NEWSDATA_API_KEY) providerStats.newsdata = items.length;
-        else providerStats.rss += items.length;
-      } else {
-        providerStats.failed++;
-      }
-    });
+    const items = await fetchFromRSS(category, lang);
+    allItems = items;
+    providerStats.successfulFeeds = items.length > 0 ? 1 : 0;
+    providerStats.failedFeeds = providerStats.totalFeeds - providerStats.successfulFeeds;
 
-    console.log(`Fetched ${allItems.length} items from providers:`, providerStats);
-
-    // Remove duplicates based on URL and title similarity
+    // Remove duplicates based on URL and title
     const seenUrls = new Set();
     const seenTitles = new Set();
     
     allItems = allItems.filter(item => {
       if (!item.url || !item.title) return false;
       
-      // Normalize URL for comparison
       const normalizedUrl = item.url.toLowerCase().split('?')[0];
-      if (seenUrls.has(normalizedUrl)) return false;
+      const normalizedTitle = item.title.toLowerCase().replace(/[^\w\s]/g, '').substring(0, 60);
       
-      // Normalize title for comparison (basic deduplication)
-      const normalizedTitle = item.title.toLowerCase().replace(/[^\w\s]/g, '').substring(0, 50);
-      if (seenTitles.has(normalizedTitle)) return false;
+      if (seenUrls.has(normalizedUrl) || seenTitles.has(normalizedTitle)) return false;
       
       seenUrls.add(normalizedUrl);
       seenTitles.add(normalizedTitle);
@@ -586,26 +419,22 @@ export async function GET(request: NextRequest) {
       const query = searchQuery.toLowerCase();
       allItems = allItems.filter(item => 
         item.title.toLowerCase().includes(query) || 
-        (item.summary && item.summary.toLowerCase().includes(query))
+        (item.summary && item.summary.toLowerCase().includes(query)) ||
+        item.source.toLowerCase().includes(query)
       );
     }
 
-    // Apply summarization if any AI provider is available
+    // Apply AI summarization if available
     const hasAICapability = AI_PROVIDERS.some(provider => provider.enabled);
     let summarizationProvider = 'none';
 
     if (hasAICapability && allItems.length > 0) {
       console.log('Applying AI summarization...');
       
-      // Summarize in batches to avoid rate limits
-      const batchSize = 5;
-      const batches = [];
-      
+      // Summarize in smaller batches to avoid rate limits
+      const batchSize = 3;
       for (let i = 0; i < allItems.length; i += batchSize) {
-        batches.push(allItems.slice(i, i + batchSize));
-      }
-
-      for (const batch of batches) {
+        const batch = allItems.slice(i, i + batchSize);
         const summaryPromises = batch.map(async (item) => {
           if (item.summary && item.summary !== 'No description available') {
             try {
@@ -615,25 +444,23 @@ export async function GET(request: NextRequest) {
               }
               return { ...item, summary };
             } catch (error) {
-              return item; // Keep original summary on error
+              return item;
             }
           }
           return item;
         });
 
         const summarizedBatch = await Promise.all(summaryPromises);
-        // Replace the batch in allItems
-        const startIndex = allItems.indexOf(batch[0]);
-        allItems.splice(startIndex, batch.length, ...summarizedBatch);
+        allItems.splice(i, batch.length, ...summarizedBatch);
         
-        // Small delay between batches to avoid rate limits
-        if (batches.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+        // Small delay between batches
+        if (i + batchSize < allItems.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
     }
 
-    // Sort by publish date if available, newest first
+    // Sort by publish date (newest first)
     allItems.sort((a, b) => {
       if (a.publishedAt && b.publishedAt) {
         return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
@@ -641,32 +468,29 @@ export async function GET(request: NextRequest) {
       return 0;
     });
 
-    // Build provider string for response
-    const activeProviders = [];
-    if (providerStats.newsapi > 0) activeProviders.push('newsapi');
-    if (providerStats.gnews > 0) activeProviders.push('gnews');
-    if (providerStats.newsdata > 0) activeProviders.push('newsdata');
-    if (providerStats.rss > 0) activeProviders.push('rss');
-    
-    let provider = activeProviders.join('+');
-    if (summarizationProvider !== 'none') {
-      provider += `+${summarizationProvider}`;
-    }
-    if (provider === '') provider = 'rss';
+    const categoryMeta = CATEGORY_METADATA[category as keyof typeof CATEGORY_METADATA] || {
+      name: category,
+      description: 'Latest news',
+      icon: '📰',
+      color: 'gray'
+    };
 
     const response = {
       items: allItems.slice(0, limit),
       meta: {
-        country: 'gb',
-        topic,
+        category: categoryMeta.name,
+        categoryIcon: categoryMeta.icon,
+        categoryDescription: categoryMeta.description,
+        categoryColor: categoryMeta.color,
         lang,
-        provider,
+        provider: `rss${summarizationProvider !== 'none' ? `+${summarizationProvider}` : ''}`,
         totalItems: allItems.length,
         returnedItems: Math.min(allItems.length, limit),
         providerStats,
         summarization: summarizationProvider,
-        errorCount: providerStats.failed,
-        warning: providerStats.failed > 0 ? `${providerStats.failed} provider(s) failed` : null
+        sources: Array.from(new Set(allItems.map(item => item.source))).slice(0, 5),
+        warning: providerStats.failedFeeds > 0 ? 
+          `${providerStats.failedFeeds} feed(s) failed to load` : null
       }
     };
 
@@ -674,27 +498,35 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 's-maxage=120, stale-while-revalidate=300'
+        'Cache-Control': 's-maxage=180, stale-while-revalidate=300'
       }
     });
 
   } catch (error) {
     console.error('Unexpected error in news API:', error);
     
-    // Graceful fallback response
+    const categoryMeta = CATEGORY_METADATA[category as keyof typeof CATEGORY_METADATA] || {
+      name: category,
+      description: 'Latest news',
+      icon: '📰',
+      color: 'gray'
+    };
+
     const errorResponse = {
       items: [],
       meta: {
-        country: 'gb',
-        topic,
+        category: categoryMeta.name,
+        categoryIcon: categoryMeta.icon,
+        categoryDescription: categoryMeta.description,
+        categoryColor: categoryMeta.color,
         lang,
         provider: 'rss',
         totalItems: 0,
         returnedItems: 0,
         providerStats,
         summarization: 'none',
-        errorCount: 1,
-        warning: 'Service temporarily unavailable, please try again shortly'
+        sources: [],
+        warning: 'Service temporarily unavailable. Please try again shortly.'
       }
     };
 
