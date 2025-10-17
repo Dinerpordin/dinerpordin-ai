@@ -288,4 +288,205 @@ function LoadingSkeleton() {
                 <div className="h-5 bg-gray-200 rounded w-12"></div>
               </div>
             </div>
-            <div className="w-20 h-20 bg-gray-200 rounded-lg ml-4
+            <div className="w-20 h-20 bg-gray-200 rounded-lg ml-4"></div>
+          </div>
+          <div className="space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-full"></div>
+            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+            <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100">
+            <div className="h-4 bg-gray-200 rounded w-24"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Main news content component
+function NewsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const topic = searchParams.get('topic') || 'world';
+  const lang = searchParams.get('lang') || 'en';
+  const q = searchParams.get('q') || '';
+  
+  const [news, setNews] = useState<NewsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const updateURL = (newTopic: string, newLang: string, newQuery: string = '') => {
+    const params = new URLSearchParams();
+    params.set('topic', newTopic);
+    params.set('lang', newLang);
+    if (newQuery) {
+      params.set('q', newQuery);
+    }
+    router.push(`/news?${params.toString()}`, { scroll: false });
+  };
+
+  const handleFilterChange = (newTopic: string, newLang: string) => {
+    setLoading(true);
+    updateURL(newTopic, newLang, q);
+  };
+
+  const handleSearch = (query: string) => {
+    setLoading(true);
+    updateURL(topic, lang, query);
+  };
+
+  useEffect(() => {
+    const fetchNews = async () => {
+      setError(null);
+      
+      try {
+        const params = new URLSearchParams({ topic, lang });
+        if (q) params.set('q', q);
+        params.set('limit', '25');
+        
+        const response = await fetch(`/api/news?${params.toString()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch news: ${response.status}`);
+        }
+        
+        const data: NewsResponse = await response.json();
+        setNews(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load news. Please try again.');
+        console.error('Error fetching news:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNews();
+  }, [topic, lang, q]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Diner Pordin News
+          </h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Aggregating news from multiple free sources with AI-powered summaries
+          </p>
+        </header>
+
+        {/* Filters and Search */}
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-8">
+          <div className="flex-1">
+            <FilterChips
+              currentTopic={topic}
+              currentLang={lang}
+              onFilterChange={handleFilterChange}
+            />
+          </div>
+          <div className="flex-shrink-0">
+            <SearchBox
+              currentQuery={q}
+              onSearch={handleSearch}
+              resultsCount={news?.meta.returnedItems || 0}
+            />
+          </div>
+        </div>
+
+        {/* Provider Stats */}
+        {news?.meta && <ProviderStats meta={news.meta} />}
+
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="text-red-500 text-xl">⚠️</div>
+              <div>
+                <h3 className="text-red-800 font-semibold">Unable to load news</h3>
+                <p className="text-red-600 mt-1">{error}</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && <LoadingSkeleton />}
+
+        {/* News Items */}
+        {!loading && news && (
+          <div className="space-y-6">
+            {news.items.length > 0 ? (
+              <>
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-gray-600">
+                    Showing {news.meta.returnedItems} of {news.meta.totalItems} articles
+                  </p>
+                  <span className="text-sm text-gray-500 capitalize">
+                    {topic} • {lang} • {news.meta.provider}
+                  </span>
+                </div>
+                
+                {news.items.map((item, index) => (
+                  <NewsCard key={`${item.url}-${index}`} item={item} index={index} />
+                ))}
+              </>
+            ) : (
+              <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="text-6xl mb-4">📰</div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">No news found</h3>
+                <p className="text-gray-600 max-w-md mx-auto">
+                  {q ? `No results found for "${q}". Try different search terms or filters.` 
+                     : 'No articles available for your current selection. Try changing topics or languages.'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer Disclaimer */}
+        <footer className="mt-16 pt-8 border-t border-gray-200">
+          <div className="text-center text-sm text-gray-500 max-w-2xl mx-auto">
+            <p className="mb-2">
+              News aggregated from multiple free APIs and RSS feeds. 
+              Summaries may be AI-generated using free tier services.
+            </p>
+            <p>
+              This service uses free tiers and may have rate limits. 
+              All content belongs to their respective publishers.
+            </p>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// Main page with Suspense boundary
+export default function NewsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading Diner Pordin News...</p>
+        </div>
+      </div>
+    }>
+      <NewsContent />
+    </Suspense>
+  );
+}
