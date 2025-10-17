@@ -23,6 +23,7 @@ interface NewsResponse {
     category: string;
     categoryIcon: string;
     categoryDescription: string;
+    categoryDescription: string;
     categoryColor: string;
     lang: string;
     provider: string;
@@ -80,6 +81,7 @@ function CategoryFilter({ currentCategory, onCategoryChange }: {
 }) {
   return (
     <div className="flex flex-col space-y-4">
+      <h3 className="text-lg font-semibold text-gray-900">Browse by Category</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
         {CATEGORIES.map((category) => (
           <button
@@ -111,271 +113,18 @@ function CategoryFilter({ currentCategory, onCategoryChange }: {
   );
 }
 
-function LanguageToggle({ currentLang, onLangChange }: {
-  currentLang: string;
-  onLangChange: (lang: string) => void;
-}) {
-  return (
-    <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
-      <button
-        onClick={() => onLangChange('en')}
-        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-          currentLang === 'en'
-            ? 'bg-white text-blue-600 shadow-sm'
-            : 'text-gray-600 hover:text-gray-800'
-        }`}
-      >
-        English
-      </button>
-      <button
-        onClick={() => onLangChange('bn')}
-        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-          currentLang === 'bn'
-            ? 'bg-white text-green-600 shadow-sm'
-            : 'text-gray-600 hover:text-gray-800'
-        }`}
-      >
-        বাংলা
-      </button>
-    </div>
-  );
-}
-
-function SearchBox({ currentQuery, onSearch, resultsCount }: {
-  currentQuery: string;
-  onSearch: (query: string) => void;
-  resultsCount: number;
-}) {
-  const [localQuery, setLocalQuery] = useState(currentQuery);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSearch(localQuery);
-  };
-
-  const handleClear = () => {
-    setLocalQuery('');
-    onSearch('');
-  };
+function DebugPanel({ meta, items }: { meta: NewsResponse['meta'], items: NewsItem[] }) {
+  if (!meta || items.length === 0) return null;
 
   return (
-    <div className="w-full max-w-2xl">
-      <form onSubmit={handleSubmit} className="relative">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <input
-            type="text"
-            value={localQuery}
-            onChange={(e) => setLocalQuery(e.target.value)}
-            placeholder="Search news headlines, content, or sources..."
-            className="w-full pl-10 pr-20 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg shadow-sm"
-          />
-          {localQuery && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="absolute right-20 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-          <button
-            type="submit"
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 px-4 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            Search
-          </button>
-        </div>
-      </form>
-      {currentQuery && (
-        <p className="text-sm text-gray-600 mt-2">
-          Found {resultsCount} result{resultsCount !== 1 ? 's' : ''} for "{currentQuery}"
-        </p>
-      )}
-    </div>
-  );
-}
-
-function NewsCard({ item }: { item: NewsItem }) {
-  const [imageError, setImageError] = useState(false);
-  
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-      
-      if (diffInHours < 1) return 'Just now';
-      if (diffInHours < 24) return `${diffInHours}h ago`;
-      if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`;
-      
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return '';
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    const cat = CATEGORIES.find(c => c.id === category);
-    return cat?.color || 'gray';
-  };
-
-  return (
-    <article className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 group">
-      <div className="p-6">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2 mb-3">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${getCategoryColor(item.category)}-100 text-${getCategoryColor(item.category)}-800`}>
-                {item.category}
-              </span>
-              <span className="text-xs text-gray-500">{item.readTime || 2} min read</span>
-            </div>
-            
-            <h2 className="text-xl font-bold text-gray-900 leading-tight mb-3 group-hover:text-blue-600 transition-colors">
-              <a 
-                href={item.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:underline"
-              >
-                {item.title}
-              </a>
-            </h2>
-            
-            <p className="text-gray-700 leading-relaxed mb-4 line-clamp-3">
-              {item.summary}
-            </p>
-          </div>
-          
-          {item.imageUrl && !imageError && (
-            <div className="ml-6 flex-shrink-0">
-              <img 
-                src={item.imageUrl} 
-                alt={item.title}
-                className="w-24 h-24 object-cover rounded-lg shadow-sm"
-                onError={() => setImageError(true)}
-              />
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-          <div className="flex items-center space-x-4 text-sm text-gray-500">
-            <span className="font-semibold text-gray-700">{item.source}</span>
-            {item.publishedAt && (
-              <span>{formatDate(item.publishedAt)}</span>
-            )}
-            {item.lang === 'bn' && (
-              <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">বাংলা</span>
-            )}
-          </div>
-          
-          <a 
-            href={item.url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors group-hover:underline"
-          >
-            Read full
-            <svg className="ml-1 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
-        </div>
+    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+      <h4 className="font-semibold text-yellow-800 mb-2">Debug Information</h4>
+      <div className="text-sm text-yellow-700 space-y-1">
+        <div>Total Items: {meta.totalItems}</div>
+        <div>Sources: {meta.sources.join(', ')}</div>
+        <div>Feeds: {meta.providerStats.successfulFeeds}/{meta.providerStats.totalFeeds} successful</div>
+        <div>Category: {meta.category}</div>
       </div>
-    </article>
-  );
-}
-
-function StatsPanel({ meta }: { meta: NewsResponse['meta'] }) {
-  if (!meta) return null;
-
-  return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 mb-8">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <div className="text-3xl">{meta.categoryIcon}</div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">{meta.category}</h2>
-            <p className="text-gray-600">{meta.categoryDescription}</p>
-          </div>
-        </div>
-        
-        <div className="flex flex-wrap gap-4 text-sm">
-          <div className="bg-white px-3 py-2 rounded-lg shadow-sm">
-            <span className="font-semibold text-gray-700">{meta.returnedItems}</span>
-            <span className="text-gray-500 ml-1">articles</span>
-          </div>
-          {meta.sources.length > 0 && (
-            <div className="bg-white px-3 py-2 rounded-lg shadow-sm">
-              <span className="font-semibold text-gray-700">{meta.sources.length}</span>
-              <span className="text-gray-500 ml-1">sources</span>
-            </div>
-          )}
-          {meta.summarization !== 'none' && (
-            <div className="bg-white px-3 py-2 rounded-lg shadow-sm">
-              <span className="font-semibold text-orange-600">AI</span>
-              <span className="text-gray-500 ml-1">summaries</span>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {meta.sources.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-blue-200">
-          <p className="text-sm text-gray-600 mb-2">Sources: {meta.sources.join(', ')}</p>
-        </div>
-      )}
-      
-      {meta.warning && (
-        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-800">{meta.warning}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LoadingSkeleton() {
-  return (
-    <div className="space-y-6">
-      {[...Array(6)].map((_, i) => (
-        <div key={i} className="bg-white rounded-xl shadow-md p-6 animate-pulse border border-gray-100">
-          <div className="flex justify-between items-start mb-4">
-            <div className="flex-1 space-y-3">
-              <div className="flex space-x-2">
-                <div className="h-6 bg-gray-200 rounded w-20"></div>
-                <div className="h-6 bg-gray-200 rounded w-16"></div>
-              </div>
-              <div className="h-7 bg-gray-200 rounded w-4/5"></div>
-              <div className="space-y-2">
-                <div className="h-4 bg-gray-200 rounded w-full"></div>
-                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-                <div className="h-4 bg-gray-200 rounded w-4/6"></div>
-              </div>
-            </div>
-            <div className="w-24 h-24 bg-gray-200 rounded-lg ml-6"></div>
-          </div>
-          <div className="flex justify-between pt-4 border-t border-gray-100">
-            <div className="flex space-x-4">
-              <div className="h-5 bg-gray-200 rounded w-20"></div>
-              <div className="h-5 bg-gray-200 rounded w-16"></div>
-            </div>
-            <div className="h-5 bg-gray-200 rounded w-16"></div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -384,7 +133,7 @@ function NewsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const category = searchParams.get('category') || 'world';
+  const category = searchParams.get('category') || 'bangladesh'; // Default to Bangladesh
   const lang = searchParams.get('lang') || 'en';
   const q = searchParams.get('q') || '';
   
@@ -404,24 +153,17 @@ function NewsContent() {
 
   const handleCategoryChange = (newCategory: string) => {
     setLoading(true);
+    setNews(null);
     updateURL(newCategory, lang, q);
-  };
-
-  const handleLangChange = (newLang: string) => {
-    setLoading(true);
-    updateURL(category, newLang, q);
-  };
-
-  const handleSearch = (query: string) => {
-    setLoading(true);
-    updateURL(category, lang, query);
   };
 
   useEffect(() => {
     const fetchNews = async () => {
       setError(null);
+      setLoading(true);
       
       try {
+        console.log(`Fetching news for category: ${category}`);
         const params = new URLSearchParams({ category, lang });
         if (q) params.set('q', q);
         params.set('limit', '30');
@@ -438,9 +180,11 @@ function NewsContent() {
         }
         
         const data: NewsResponse = await response.json();
+        console.log(`Received ${data.items.length} items for ${category}`, data.meta);
         setNews(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load news. Please try again.');
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load news. Please try again.';
+        setError(errorMsg);
         console.error('Error fetching news:', err);
       } finally {
         setLoading(false);
@@ -451,16 +195,12 @@ function NewsContent() {
   }, [category, lang, q]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <header className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Diner Pordin News
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Curated news from trusted global and Bangladeshi sources
-          </p>
+        <header className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Diner Pordin News</h1>
+          <p className="text-gray-600">Latest news from trusted global and Bangladeshi sources</p>
         </header>
 
         {/* Category Filters */}
@@ -471,25 +211,12 @@ function NewsContent() {
           />
         </div>
 
-        {/* Search and Language */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
-          <SearchBox
-            currentQuery={q}
-            onSearch={handleSearch}
-            resultsCount={news?.meta.returnedItems || 0}
-          />
-          <LanguageToggle
-            currentLang={lang}
-            onLangChange={handleLangChange}
-          />
-        </div>
-
-        {/* Stats Panel */}
-        {news?.meta && <StatsPanel meta={news.meta} />}
+        {/* Debug Info */}
+        {news && <DebugPanel meta={news.meta} items={news.items} />}
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
             <div className="flex items-center gap-3">
               <div className="text-red-500 text-xl">⚠️</div>
               <div>
@@ -507,36 +234,93 @@ function NewsContent() {
         )}
 
         {/* Loading State */}
-        {loading && <LoadingSkeleton />}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading {CATEGORIES.find(c => c.id === category)?.name} news...</p>
+          </div>
+        )}
 
         {/* News Items */}
         {!loading && news && (
-          <div className="space-y-6">
+          <div>
             {news.items.length > 0 ? (
-              news.items.map((item) => (
-                <NewsCard key={item.id} item={item} />
-              ))
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {news.meta.category} News ({news.items.length} articles)
+                  </h2>
+                  <div className="text-sm text-gray-500">
+                    Sources: {news.meta.sources.slice(0, 3).join(', ')}
+                    {news.meta.sources.length > 3 && ' and more...'}
+                  </div>
+                </div>
+                
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {news.items.map((item) => (
+                    <div key={item.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200">
+                      <div className="p-6">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                            {item.source}
+                          </span>
+                          {item.readTime && (
+                            <span className="text-xs text-gray-500">{item.readTime} min read</span>
+                          )}
+                        </div>
+                        
+                        <h3 className="font-bold text-lg mb-3 line-clamp-3">
+                          <a 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:text-blue-600 transition-colors"
+                          >
+                            {item.title}
+                          </a>
+                        </h3>
+                        
+                        <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                          {item.summary}
+                        </p>
+                        
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>
+                            {item.publishedAt ? new Date(item.publishedAt).toLocaleDateString() : 'Recent'}
+                          </span>
+                          {item.lang === 'bn' && (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded">বাংলা</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
-              <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
                 <div className="text-6xl mb-4">📰</div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">No news found</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
-                  {q ? `No results found for "${q}". Try different search terms.` 
-                     : 'No articles available for this category. Try selecting a different category.'}
+                <p className="text-gray-600 mb-4">
+                  {news.meta.warning || 'Try selecting a different category or check back later.'}
                 </p>
+                <div className="text-sm text-gray-500">
+                  <p>Current category: {news.meta.category}</p>
+                  <p>Successful feeds: {news.meta.providerStats.successfulFeeds}/{news.meta.providerStats.totalFeeds}</p>
+                </div>
               </div>
             )}
           </div>
         )}
 
         {/* Footer */}
-        <footer className="mt-16 pt-8 border-t border-gray-200">
-          <div className="text-center text-sm text-gray-500 max-w-2xl mx-auto">
+        <footer className="mt-12 pt-8 border-t border-gray-200">
+          <div className="text-center text-sm text-gray-500">
             <p className="mb-2">
-              News aggregated from trusted global and Bangladeshi sources including BBC, Reuters, The Daily Star, and more.
+              News aggregated from trusted global and Bangladeshi sources.
             </p>
             <p>
-              Summaries may be AI-generated. All content belongs to their respective publishers.
+              All content belongs to their respective publishers.
             </p>
           </div>
         </footer>
@@ -548,10 +332,10 @@ function NewsContent() {
 export default function NewsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading Diner Pordin News...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading news...</p>
         </div>
       </div>
     }>
