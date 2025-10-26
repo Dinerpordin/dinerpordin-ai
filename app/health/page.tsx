@@ -47,7 +47,8 @@ export default function HealthPage() {
   const [ui, setUi] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [lang, setLang] = useState<'en'|'bn'>('en');
+  // ---- Bangla default ----
+  const [lang, setLang] = useState<'en'|'bn'>('bn');
 
   async function analyze() {
     setLoading(true);
