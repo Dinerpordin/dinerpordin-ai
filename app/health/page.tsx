@@ -14,7 +14,8 @@ const TEXT = {
     error: "Something went wrong:",
     clear: "Clear",
     lang: "বাংলা",
-    disclaimer: "Warning: This is an educational tool only, not a medical diagnosis or advice. Consult a qualified doctor for medical treatment. Seek emergency care if symptoms worsen.",
+    disclaimer:
+      "Warning: This is an educational tool only, not a medical diagnosis or advice. Consult a qualified doctor for medical treatment. Seek emergency care if symptoms worsen.",
   },
   bn: {
     header: "হেলথচেক এআই (শিক্ষামূলক)",
@@ -28,8 +29,9 @@ const TEXT = {
     error: "কিছু ভুল হয়েছে:",
     clear: "মুছুন",
     lang: "English",
-    bnDisclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।"
-  }
+    disclaimer:
+      "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।",
+  },
 };
 
 export default function HealthPage() {
@@ -38,7 +40,8 @@ export default function HealthPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // ---- Bangla default ----
-  const [lang, setLang] = useState<'en'|'bn'>('bn');
+  const [lang, setLang] = useState<'en' | 'bn'>('bn');
+
   async function analyze() {
     setLoading(true);
     setErr(null);
@@ -47,7 +50,7 @@ export default function HealthPage() {
       const r = await fetch('/api/health', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q, want_bn: true }) // concise/compact removed!
+        body: JSON.stringify({ q, want_bn: true }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Request failed');
@@ -58,9 +61,15 @@ export default function HealthPage() {
       setLoading(false);
     }
   }
+
   const t = TEXT[lang];
+
   return (
-    <section className={`max-w-2xl mx-auto p-4 ${lang === 'bn' ? 'font-[Noto_Sans_Bengali,sans-serif]' : ''}`}>
+    <section
+      className={`max-w-2xl mx-auto p-4 ${
+        lang === 'bn' ? 'font-[Noto_Sans_Bengali,sans-serif]' : ''
+      }`}
+    >
       <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-2xl font-semibold mb-1">{t.header}</h1>
@@ -72,8 +81,10 @@ export default function HealthPage() {
           {t.lang}
         </button>
       </div>
-      {/* Bangla disclaimer shown above the textarea */}
-      <div className="mb-2 text-xs text-slate-500">{t.bnDisclaimer}</div>
+
+      {/* Single disclaimer (language-aware) */}
+      <div className="mb-2 text-xs text-slate-500">{t.disclaimer}</div>
+
       <textarea
         className="w-full border rounded p-3 h-64 bg-white dark:bg-slate-900 text-base"
         value={q}
@@ -90,33 +101,65 @@ export default function HealthPage() {
         </button>
         <button
           type="button"
-          onClick={() => { setQ(''); setUi(null); setErr(null); }}
+          onClick={() => {
+            setQ('');
+            setUi(null);
+            setErr(null);
+          }}
           className="px-4 py-2 rounded border bg-slate-50 text-sm ml-2"
         >
           {t.clear}
         </button>
       </div>
+
       {err && (
         <div className="mt-4 p-3 bg-red-50 text-red-800 rounded">
           {t.error} {err}
         </div>
       )}
+
       {ui && (
         <section className="mt-6 space-y-4">
-          <Card title={t.summary} lang={lang}>{ui.summary}</Card>
-          <Card title={t.possibleCauses} lang={lang}><List items={ui.possible_causes} /></Card>
-          <Card title={t.redFlags} intent="danger" lang={lang}><List items={ui.red_flags} /></Card>
-          <Card title={t.selfCare} intent="success" lang={lang}><List items={ui.self_care} /></Card>
-          {ui.bn_summary && <Card title={lang === 'bn' ? t.summary : t.summary} lang="bn">{ui.bn_summary}</Card>}
+          <Card title={t.summary} lang={lang}>
+            {ui.summary}
+          </Card>
+          <Card title={t.possibleCauses} lang={lang}>
+            <List items={ui.possible_causes} />
+          </Card>
+          <Card title={t.redFlags} intent="danger" lang={lang}>
+            <List items={ui.red_flags} />
+          </Card>
+          <Card title={t.selfCare} intent="success" lang={lang}>
+            <List items={ui.self_care} />
+          </Card>
+
+          {/* If server returns a Bangla summary, show it below (kept as-is) */}
+          {ui.bn_summary && (
+            <Card
+              title={lang === 'bn' ? t.summary : t.summary}
+              lang="bn"
+            >
+              {ui.bn_summary}
+            </Card>
+          )}
         </section>
       )}
-      <div className="mt-6 text-xs text-slate-500">{t.bnDisclaimer}</div>
     </section>
   );
 }
 
-// Card and List components unchanged from your version
-function Card({ title, children, intent, lang }: { title: string; children: any; intent?: 'danger' | 'success'; lang?: 'en'|'bn' }) {
+// Card and List components unchanged
+function Card({
+  title,
+  children,
+  intent,
+  lang,
+}: {
+  title: string;
+  children: any;
+  intent?: 'danger' | 'success';
+  lang?: 'en' | 'bn';
+}) {
   const cls =
     intent === 'danger'
       ? 'bg-red-50 border-red-200 dark:bg-red-800/20'
@@ -124,7 +167,11 @@ function Card({ title, children, intent, lang }: { title: string; children: any;
       ? 'bg-green-50 border-green-200 dark:bg-green-800/20'
       : 'bg-white dark:bg-slate-900';
   return (
-    <div className={`border rounded p-4 ${cls} ${lang === 'bn' ? 'font-[Noto_Sans_Bengali,sans-serif]' : ''}`}>
+    <div
+      className={`border rounded p-4 ${cls} ${
+        lang === 'bn' ? 'font-[Noto_Sans_Bengali,sans-serif]' : ''
+      }`}
+    >
       <div className="text-sm font-semibold mb-2">{title}</div>
       <div>{children}</div>
     </div>
@@ -135,7 +182,7 @@ function List({ items }: { items: string[] }) {
   if (!items?.length) return <div className="text-slate-500">—</div>;
   return (
     <ul className="list-disc pl-5">
-      {items.map((x, i) => (<li key={i}>{x}</li>))}
-    </ul>
-  );
-}
+      {items.map((x, i) => (
+        <li key={i}>{x}</li>
+      ))}
+    </ul
