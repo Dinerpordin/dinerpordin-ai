@@ -14,8 +14,6 @@ const TEXT = {
     error: "Something went wrong:",
     clear: "Clear",
     lang: "বাংলা",
-    disclaimer: "Disclaimer: This tool is for educational purposes only and does not provide medical diagnosis, treatment, or advice. Always consult a qualified healthcare professional for medical concerns. If symptoms are severe or worsening, seek urgent care.",
-    bnDisclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।"
   },
   bn: {
     header: "হেলথচেক এআই (শিক্ষামূলক)",
