@@ -1,16 +1,12 @@
 'use client';
-
 import React, { useState } from 'react';
 
 const TEXT = {
   en: {
     header: "Healthcheck AI (Educational)",
     placeholder: "Briefly describe your concern…",
-    banglaSummary: "Bangla summary",
-    concise: "Concise",
     analyze: "Analyze",
     analyzing: "Analyzing…",
-    inputBangla: "Bangla summary",
     summary: "Summary",
     possibleCauses: "Possible causes",
     redFlags: "Red flags (seek care urgently)",
@@ -18,16 +14,14 @@ const TEXT = {
     error: "Something went wrong:",
     clear: "Clear",
     lang: "বাংলা",
-    disclaimer: "Disclaimer: This tool is for educational purposes only and does not provide medical diagnosis, treatment, or advice. Always consult a qualified healthcare professional for medical concerns. If symptoms are severe or worsening, seek urgent care."
+    disclaimer: "Disclaimer: This tool is for educational purposes only and does not provide medical diagnosis, treatment, or advice. Always consult a qualified healthcare professional for medical concerns. If symptoms are severe or worsening, seek urgent care.",
+    bnDisclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।"
   },
   bn: {
     header: "হেলথচেক এআই (শিক্ষামূলক)",
     placeholder: "সংক্ষেপে আপনার সমস্যা লিখুন…",
-    banglaSummary: "বাংলা সারাংশ",
-    concise: "সংক্ষেপে",
     analyze: "বিশ্লেষণ করুন",
     analyzing: "বিশ্লেষণ চলছে…",
-    inputBangla: "বাংলা সারাংশ",
     summary: "সারাংশ",
     possibleCauses: "সম্ভাব্য কারণ",
     redFlags: "সতর্ক সংকেত (জরুরি চিকিৎসা)",
@@ -35,19 +29,18 @@ const TEXT = {
     error: "কিছু ভুল হয়েছে:",
     clear: "মুছুন",
     lang: "English",
-    disclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।"
+    disclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।",
+    bnDisclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।"
   }
 };
 
 export default function HealthPage() {
   const [q, setQ] = useState('');
-  const [compact, setCompact] = useState(true);
   const [ui, setUi] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // ---- Bangla default ----
   const [lang, setLang] = useState<'en'|'bn'>('bn');
-
   async function analyze() {
     setLoading(true);
     setErr(null);
@@ -56,7 +49,7 @@ export default function HealthPage() {
       const r = await fetch('/api/health', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q, want_bn: true, compact })
+        body: JSON.stringify({ q, want_bn: true }) // concise/compact removed!
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Request failed');
@@ -67,15 +60,12 @@ export default function HealthPage() {
       setLoading(false);
     }
   }
-
   const t = TEXT[lang];
-
   return (
     <section className={`max-w-2xl mx-auto p-4 ${lang === 'bn' ? 'font-[Noto_Sans_Bengali,sans-serif]' : ''}`}>
       <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-2xl font-semibold mb-1">{t.header}</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-300">{t.desc}</p>
         </div>
         <button
           className="ml-4 px-3 py-1 rounded border bg-white dark:bg-slate-800 text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
@@ -84,21 +74,15 @@ export default function HealthPage() {
           {t.lang}
         </button>
       </div>
+      {/* Bangla disclaimer shown above the textarea */}
+      <div className="mb-2 text-xs text-slate-500">{t.bnDisclaimer}</div>
       <textarea
-        className="w-full border rounded p-3 h-32 bg-white dark:bg-slate-900 text-base"
+        className="w-full border rounded p-3 h-64 bg-white dark:bg-slate-900 text-base"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={t.placeholder}
       />
       <div className="mt-3 flex gap-4 items-center">
-        <label className="text-sm">
-          <input
-            type="checkbox"
-            checked={compact}
-            onChange={e => setCompact(e.target.checked)}
-          />{' '}
-          {t.concise}
-        </label>
         <button
           onClick={analyze}
           disabled={loading}
@@ -125,19 +109,15 @@ export default function HealthPage() {
           <Card title={t.possibleCauses} lang={lang}><List items={ui.possible_causes} /></Card>
           <Card title={t.redFlags} intent="danger" lang={lang}><List items={ui.red_flags} /></Card>
           <Card title={t.selfCare} intent="success" lang={lang}><List items={ui.self_care} /></Card>
-          {ui.bn_summary && <Card title={t.banglaSummary} lang="bn">{ui.bn_summary}</Card>}
-          {ui.usage && (
-            <div className="text-xs text-slate-500">
-              Model: {ui.usage.model} • In: {ui.usage.input_tokens ?? '-'} • Out: {ui.usage.output_tokens ?? '-'}
-            </div>
-          )}
+          {ui.bn_summary && <Card title={lang === 'bn' ? t.summary : t.summary} lang="bn">{ui.bn_summary}</Card>}
         </section>
       )}
-      <div className="mt-6 text-xs text-slate-500">{t.disclaimer}</div>
+      <div className="mt-6 text-xs text-slate-500">{t.bnDisclaimer}</div>
     </section>
   );
 }
 
+// Card and List components unchanged from your version
 function Card({ title, children, intent, lang }: { title: string; children: any; intent?: 'danger' | 'success'; lang?: 'en'|'bn' }) {
   const cls =
     intent === 'danger'
@@ -152,6 +132,7 @@ function Card({ title, children, intent, lang }: { title: string; children: any;
     </div>
   );
 }
+
 function List({ items }: { items: string[] }) {
   if (!items?.length) return <div className="text-slate-500">—</div>;
   return (
