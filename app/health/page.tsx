@@ -27,7 +27,7 @@ const TEXT = {
     error: "কিছু ভুল হয়েছে:",
     clear: "মুছুন",
     lang: "English",
-    disclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।",
+    disclaimer: "Warning: This is an educational tool only, not a medical diagnosis or advice. Consult a qualified doctor for medical treatment. Seek emergency care if symptoms worsen.",
     bnDisclaimer: "সতর্কতা: এটি শুধুমাত্র শিক্ষামূলক টুল, চিকিৎসা নির্ণয়/পরামর্শ নয়। চিকিৎসার জন্য যোগ্য চিকিৎসক পরামর্শ নিন। উপসর্গ বেশি হলে জরুরি চিকিৎসা নিন।"
   }
 };
