@@ -5,7 +5,6 @@ import React, { useState } from 'react';
 const TEXT = {
   en: {
     header: "Healthcheck AI (Educational)",
-    desc: "Not medical advice. If symptoms are severe or worsening, seek urgent care.",
     placeholder: "Briefly describe your concern…",
     banglaSummary: "Bangla summary",
     concise: "Concise",
@@ -23,7 +22,6 @@ const TEXT = {
   },
   bn: {
     header: "হেলথচেক এআই (শিক্ষামূলক)",
-    desc: "এটি কোনো চিকিৎসা পরামর্শ নয়। উপসর্গ গুরুতর হলে বা বাড়লে দ্রুত চিকিৎসা নিন।",
     placeholder: "সংক্ষেপে আপনার সমস্যা লিখুন…",
     banglaSummary: "বাংলা সারাংশ",
     concise: "সংক্ষেপে",
